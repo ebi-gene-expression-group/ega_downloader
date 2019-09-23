@@ -7,9 +7,12 @@ cl <- commandArgs( trailingOnly = TRUE )
 metadata_dir <- cl[1]
 data_dir <- cl[2]
 ds <- cl[3]
-outfile <- cl[4]
+dbox_listing <- cl[4]
+outfile <- cl[5]
 
 # Read in the file that will allow us to derive a list of runs (i.e not analyses)
+
+print(file.path(metadata_dir, ds, 'delimited_maps', "Study_Experiment_Run_sample.map"))
 
 sample_info <- read.delim(file.path(metadata_dir, ds, 'delimited_maps', "Study_Experiment_Run_sample.map"), header=FALSE, stringsAsFactors = FALSE)
 colnames(sample_info) <- c('ega_study_id', 'study_title', 'study_type', 'instrument_platform', 'instrument_model', 'library_layout', 'maybe_read_count', 'library_strategy', 'library_source', 'molecule', 'ega_experiment_id', 'ega_run_id', 'centre', 'unknown', 'ega_sample_id')
@@ -62,18 +65,21 @@ if (max(table(sample_file_mapping$ega_sample_id)) > 1){
     sample_info <- merge(sample_info, sample_file_mapping, by='ega_sample_id', sort=FALSE)
 }
 
-# Now use the derived file name and the file ID to derive paths
+# Now check the file is actually available for download
 
-sample_info$file_path = file.path(data_dir, ds, paste(sample_info$ega_run_id, sample_info$file, sep='_'))
+dbox_files <- readLines(dbox_listing)
+matches <- lapply(sample_info$file, function(x) grep(x, dbox_files))
+lengths <- unlist(lapply(matches, length))
 
-# Check the files exist
-
-files_exist <- file.exists(sample_info$file_path)
-
-if (any(! files_exist)){
-    missing_files <- sample_info$file_path[!files_exist]
-    write(paste("ERROR: the following files do not exist:", paste(missing_files, collapse=', ')))
+if (any(lengths != 1)){
+    write("Cannot match files to downloads", stderr())
     q(status=1)
 }
 
+sample_info$dbox_path = dbox_files[unlist(matches)]
+sample_info$file <- sub('.crypt', '', basename(sample_info$dbox_path))
+
+# Stash the dataset ID in the file for convenience
+
+sample_info$ega_dataset_id <- ds
 write.table(sample_info, outfile, quote = FALSE, row.names=FALSE, sep="\t")
