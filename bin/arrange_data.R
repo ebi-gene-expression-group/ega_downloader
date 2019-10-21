@@ -32,6 +32,7 @@ runs <- list.files(file.path(metadata_dir, ds, 'xmls', 'runs'), full.names = TRU
 run_xml_content <- lapply(runs, function(x){
   run <- read_xml(x)
   run_info <- attributes(as_list(run)$RUN_SET$RUN$DATA_BLOCK$FILES$FILE)
+  run_info$primary_id <- unlist(as_list(run)$RUN_SET$RUN$IDENTIFIERS$PRIMARY_ID)
   run_info$ega_run_id <- basename(sub('.run.xml', '', x))
   unlist(run_info)
 })
