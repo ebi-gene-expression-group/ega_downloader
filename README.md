@@ -53,24 +53,13 @@ Make sure this file is readable only by yourself!
 
 ### Obtain metadata
 
-Download the metadata bundle from the EGA page for each dataset. You'll get a bundle containing 'delimited_maps' and 'xmls'. Place these directories under 'metadata'.
-
-EGA contains two central entity types: 'run' and 'analysis', containing raw (ish) and downstream analysis results, respectively. Unfortunately, EGA provides you with mappings of sample to file with no concept of whether they pertain to runs or analyses. You need a mapping from sample/run and sample/analysis pairs to file, which you'll need to obtain from the EGA. You should get a file with content like:
-
-```
-EGAN00009876543,EGAR00001234,[""abc.cram.gpg""]
-EGAN00002198765,EGAR00005678,[""def.cram.gpg""]
-EGAN00004321987,EGAR00009101,[""ghi.cram.gpg""]
-```
-
-Store this in a file called 'EGAN-EGAR.csv' under 'linkages'. Your metadata directory should now have subdirectories like:
+Download the metadata bundle from the EGA page for each dataset. You'll get a bundle containing 'delimited_maps' and 'xmls'. Place these directories under 'metadata':
 
 ```
 metadata
     |- EGAD00011223344
         |- delimited_maps
         |- xmls
-        |- linkages
 ```
 
 We now have all the information we need to download and structure the raw data.

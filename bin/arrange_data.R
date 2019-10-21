@@ -1,5 +1,7 @@
 #!/usr/bin/env Rscript 
 
+suppressPackageStartupMessages(library('xml2'))
+
 # Find the datasets listed in the metadata directory
 
 cl <- commandArgs( trailingOnly = TRUE )
@@ -23,56 +25,45 @@ if (max(table(sample_info$file_key)) > 1){
     q(status=1)
 }
 
-# Read in the list of files pertaining to each sample. These will be a
-# mixture of files for runs and for analyses
+# Generate a run/file mapping from the XMLs
 
-sample_file_mapping <- read.delim(file.path(metadata_dir, ds, 'delimited_maps', "Sample_File.map"), header=FALSE, stringsAsFactors = FALSE)
-colnames(sample_file_mapping) <- c('biosample_id', 'ega_sample_id', 'file', 'ega_file_id')
-sample_file_mapping$file <- sub('(.*)\\.cip', '\\1', sample_file_mapping$file )
+runs <- list.files(file.path(metadata_dir, ds, 'xmls', 'runs'), full.names = TRUE)
 
-# If analyses are present concerning the same samples as the runs, then
-# there is no way to differentiate files pertaining to runs and to analyses
-# without talking to ENA. 
+run_xml_content <- lapply(runs, function(x){
+  run <- read_xml(x)
+  run_info <- attributes(as_list(run)$RUN_SET$RUN$DATA_BLOCK$FILES$FILE)
+  run_info$ega_run_id <- basename(sub('.run.xml', '', x))
+  unlist(run_info)
+})
 
-if (max(table(sample_file_mapping$ega_sample_id)) > 1){
-    sample_run_file_file <- file.path(metadata_dir, ds, 'linkages', "EGAN-EGAR.csv")
-    if (file.exists(sample_run_file_file)){
-        sample_run_file <- read.delim(sample_run_file_file, header=FALSE, stringsAsFactors = FALSE, sep=',')
-        colnames(sample_run_file) <- c('ega_sample_id', 'ega_run_id', 'file')
-        sample_run_file$file_key <- paste(sample_run_file$ega_sample_id, sample_run_file$ega_run_id, sep='-')
-        sample_run_file$file <- sub('\\[(.*)\\]', '\\1', sample_run_file$file)
-        sample_run_file$file <- sub('(.*)\\.gpg', '\\1', sample_run_file$file)
+common_fields <- Reduce(intersect, lapply(run_xml_content, names))
+run_file <- data.frame(do.call(rbind, lapply(run_xml_content, function(x) x[common_fields])), stringsAsFactors = FALSE)
+run_file$filename <- gsub('/', '_', run_file$filename)
 
-        if (max(table(sample_run_file$file_key)) > 1){
-            write(paste("Non-unique sample/ run pairs in", sample_run_file), stderr())
-            q(status=1)
-        }
-    }else{
-        write(paste("There are multiple files per sample in this EGA study, and no way of mapping them to runs or analyses with default EGA info. You need to contact helpdesk@ega-archive.org, and ask for a 3-column linkage file containing sample ID, run ID and file name(s). Place this at", sample_run_file_file, "."), stderr())    
-        q(status=1)
-
-    }
-
-    # Get the name of the file from the mapping EGA provided
-
-    sample_info$file <- sample_run_file$file[match(sample_info$file_key, sample_run_file$file_key)]
-      
-    # Use the standard EGA sample/ file mapping to get the EGA file ID for
-    # the file. We'll need that to derive the path from the data download
-
-    sample_info <- merge(sample_info, sample_file_mapping[,-2], by='file', sort=FALSE)
-}else{
-    sample_info <- merge(sample_info, sample_file_mapping, by='ega_sample_id', sort=FALSE)
-}
+sample_info <- merge(sample_info, run_file, all.x = TRUE, sort = FALSE)
+sample_info$filename <- sub('(.*)\\.gpg', '\\1', sample_info$filename)
+sample_info$filename <- sub('(.*)\\.cip', '\\1', sample_info$filename)
 
 # Now check the file is actually available for download
 
 dbox_files <- readLines(dbox_listing)
-matches <- lapply(sample_info$file, function(x) grep(x, dbox_files))
+
+# Assume that the dbox entry contains the file name and the run ID
+
+matches <- apply(sample_info, 1, function(x) which(grepl(x['ega_run_id'], dbox_files) & grepl(x['filename'], dbox_files)))
+names(matches) <- sample_info$filename
 lengths <- unlist(lapply(matches, length))
 
 if (any(lengths != 1)){
-    write("Cannot match files to downloads", stderr())
+    missing <- names(lengths)[lengths == 0]
+    if (length(missing) > 0){
+        write(paste("can't find the following in the downloads:", paste(missing, collapse=', ')), stderr())
+    }
+    multiple <- names(lengths)[lengths > 1]
+    if (length(multiple) > 0){
+        write(paste("The following match multiple files in downloads:", paste(multiple, collapse=', ')), stderr())
+    }
+
     q(status=1)
 }
 
@@ -82,4 +73,5 @@ sample_info$file <- sub('.crypt', '', basename(sample_info$dbox_path))
 # Stash the dataset ID in the file for convenience
 
 sample_info$ega_dataset_id <- ds
+
 write.table(sample_info, outfile, quote = FALSE, row.names=FALSE, sep="\t")

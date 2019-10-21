@@ -36,7 +36,9 @@ process get_dbox_content {
 
 process make_metadata_table {
 
-    conda 'r-base'
+    conda 'r-base r-xml2'
+    
+    errorStrategy 'ignore'
 
     cache 'deep'
 
