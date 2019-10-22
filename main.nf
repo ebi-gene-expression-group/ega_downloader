@@ -65,6 +65,8 @@ DATASET_CSVS
 process get_dbox_files {
     
     storeDir "$dataDir/$dsId/encrypted"
+
+    errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }
     
     cache 'lenient'
     
