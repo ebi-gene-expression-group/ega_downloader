@@ -118,18 +118,47 @@ process decrypt {
 
 DECRYPTED_LINES
     .into{
-        DECRYPTED_LINES_FOR_CRAMS
+        DECRYPTED_LINES_FOR_CRAMS_BAMS
         DECRYPTED_LINES_FOR_READMES
     }
 
 
-DECRYPTED_LINES_FOR_CRAMS
-    .filter{ row -> row[0].endsWith('.cram') }
+DECRYPTED_LINES_FOR_CRAMS_BAMS
+    .filter{ row -> row[0].endsWith('.cram') | row[0].endsWith('.bam') }
     .set{
-        CRAMS_FOR_FASTQS
+        CRAMS_BAMS_FOR_FASTQS
     }
 
-process cram_to_fastq {
+process test_endedness {
+
+    conda 'samtools'
+
+    input:
+        set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(cramFile) from CRAMS_BAMS_FOR_FASTQS
+    
+    output:
+        set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(cramFile), stdout into ENDED_CRAMS_BAMS
+   
+    """
+    n_paired_reads=\$(samtools view -c -f 1 $cramFile)
+    if [ \$n_paired_reads = 0 ]; then
+        echo -n SINGLE
+    else
+        echo -n PAIRED
+    fi
+    """ 
+}
+
+PAIRED = Channel.create()
+UNPAIRED = Channel.create()
+
+ENDED_CRAMS_BAMS.choice( UNPAIRED, PAIRED ) {a -> 
+    a[7] == 'PAIRED' ? 1 : 0
+}
+
+// Paired bam to fastq
+
+process paired_cram_bam_to_fastq {
 
     conda 'samtools'
     
@@ -138,19 +167,76 @@ process cram_to_fastq {
     errorStrategy { task.attempt<=3 ? 'retry' : 'finish' }    
     memory { 2.GB * task.attempt }
 
-    publishDir "$dataDir/$dsId/$libraryStrategy/fastq", mode: 'copy', overwrite: true
-
     input:
-        set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(cramFile) from CRAMS_FOR_FASTQS
+        set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(cramFile), val(end) from PAIRED
 
     output:
-        set val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file("${cramFile.baseName}_1.fastq.gz"), file("${cramFile.baseName}_2.fastq.gz") into FASTQS_FROM_CRAMS
+        set val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file("${cramFile.baseName}_1.fastq.gz"), file("${cramFile.baseName}_2.fastq.gz") into FASTQS_FROM_PAIRED
     
     """
     export REF_CACHE=$dataDir/reference
     samtools collate $cramFile ${cramFile}.collated
     samtools fastq -F 2816 -c 6 -1 ${cramFile.baseName}_1.fastq.gz -2 ${cramFile.baseName}_2.fastq.gz ${cramFile}.collated.bam
     """
+}
+
+// Unpaired bam to fastq
+
+process unpaired_cram_bam_to_fastq {
+
+    conda 'samtools'
+    
+    publishDir "$dataDir/$dsId/$libraryStrategy/fastq", mode: 'copy', overwrite: true
+    
+    cache 'lenient'
+
+    errorStrategy { task.attempt<=3 ? 'retry' : 'finish' }    
+    memory { 2.GB * task.attempt }
+
+    input:
+        set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(cramFile), val(end) from UNPAIRED
+
+    output:
+        set val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file("${cramFile.baseName}.fastq.gz") into FASTQS_FROM_UNPAIRED
+    
+    """
+    export REF_CACHE=$dataDir/reference
+    samtools collate $cramFile ${cramFile}.collated
+    samtools fastq -F 2816 -c 6 ${cramFile}.collated.bam > ${cramFile.baseName}.fastq.gz 
+    """
+}
+
+// Synchronise paired-end read files 
+
+process synchronise_pairs {
+  
+    conda 'fastq-pair'
+    
+    publishDir "$dataDir/$dsId/$libraryStrategy/fastq", mode: 'copy', overwrite: true
+  
+    memory { 30.GB * task.attempt }
+
+    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 || task.attempt < 3 ? 'retry' : 'ignore' }
+    maxRetries 3
+    
+    input:
+        set val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(read1), file(read2) from FASTQS_FROM_PAIRED
+
+    output:
+        set file( "matched/${read1}" ), file("matched/${read2}") into MATCHED_PAIRED_FASTQS
+
+    beforeScript 'mkdir -p matched && mkdir -p unmatched'
+
+    """
+        zcat ${read1} > ${read1.baseName}
+        zcat ${read2} > ${read2.baseName}
+        fastq_pair ${read1.baseName} ${read2.baseName}
+
+        gzip ${read1.baseName}.paired.fq && mv ${read1.baseName}.paired.fq.gz matched/${read1}
+        gzip ${read2.baseName}.paired.fq && mv ${read2.baseName}.paired.fq.gz matched/${read2}
+
+        rm -f ${read1.baseName} ${read2.baseName}
+    """          
 }
 
 DECRYPTED_LINES_FOR_READMES
