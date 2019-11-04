@@ -171,7 +171,7 @@ process paired_cram_bam_to_fastq {
         set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(cramFile), val(end) from PAIRED
 
     output:
-        set val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file("${cramFile.baseName}_1.fastq.gz"), file("${cramFile.baseName}_2.fastq.gz") into FASTQS_FROM_PAIRED
+        set val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), val("${cramFile.baseName}"), file("${cramFile.baseName}_1.fastq.gz"), file("${cramFile.baseName}_2.fastq.gz") into FASTQS_FROM_PAIRED
     
     """
     export REF_CACHE=$dataDir/reference
@@ -220,7 +220,7 @@ process synchronise_pairs {
     maxRetries 3
     
     input:
-        set val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(read1), file(read2) from FASTQS_FROM_PAIRED
+        set val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), val(baseName), file('read1.fastq.gz'), file('read2.fastq.gz') from FASTQS_FROM_PAIRED
 
     output:
         set file( "matched/${read1}" ), file("matched/${read2}") into MATCHED_PAIRED_FASTQS
@@ -228,14 +228,14 @@ process synchronise_pairs {
     beforeScript 'mkdir -p matched && mkdir -p unmatched'
 
     """
-        zcat ${read1} > ${read1.baseName}
-        zcat ${read2} > ${read2.baseName}
-        fastq_pair ${read1.baseName} ${read2.baseName}
+        zcat read1.fastq.gz > read1.fastq
+        zcat read2.fastq.gz > read2.fastq
+        fastq_pair read1.fastq read2.fastq
 
-        gzip ${read1.baseName}.paired.fq && mv ${read1.baseName}.paired.fq.gz matched/${read1}
-        gzip ${read2.baseName}.paired.fq && mv ${read2.baseName}.paired.fq.gz matched/${read2}
+        gzip read1.paired.fq && mv read1.paired.fq.gz ${baseName}_1.fastq.gz
+        gzip read2.paired.fq && mv read2.paired.fq.gz ${baseName}_2.fastq.gz
 
-        rm -f ${read1.baseName} ${read2.baseName}
+        rm -f read1.fastq read2.fastq
     """          
 }
 
