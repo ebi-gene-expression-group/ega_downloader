@@ -2,6 +2,8 @@
 
 This is a Nextflow workflow designed to download data for an EGA dataset and arrange in a form suitable for analysis, with raw FASTQ files and a metadata table.
 
+Currently it's intended for when EGA has provided you with an Aspera box, since the Java client is useless and the Python client doesn't work with .gpg-encrypted files. But they're apparently re-encrypting all their files, so this workflow will be modified to use the Python client in due course.
+
 ## Prerequisites
 
  * [Nextflow](https://www.nextflow.io/) installed
@@ -41,7 +43,7 @@ cat ${destination}/dbox_content | xargs -i --max-procs=$parallel_downloads bash 
 
 You'll also separately be given a 'secret'.
 
-Create an authentication file for each component dataset, at e.g. credentials/EGAD00011223344:
+Create an authentication file for each component dataset, at e.g. credentials/EGAD00011223344.txt:
 
 ```
 user=dbox1234
@@ -66,7 +68,9 @@ We now have all the information we need to download and structure the raw data.
 
 ## Run download pipeline
 
-Clone this repository to the top directory, then run:
+Clone this repository to the top directory. You'll need to copy EGA's 'decryptor.jar' app into the bin/ directory of this repo (since I didn't think it appropriate to redistribute that file).
+
+Then run:
 
 ```
 ./ega_tools/main.nf -resume
