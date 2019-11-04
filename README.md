@@ -1,8 +1,8 @@
 # Download EGA data and arrange for analysis
 
-This is a Nextflow workflow designed to download data for an EGA dataset and arrange in a form suitable for analysis, with raw FASTQ files and a metadata table.
+This is a Nextflow workflow designed to download data for an EGA dataset and arrange in a form suitable for analysis, with raw FASTQ files and a metadata table. BAM/ CRAM files are converted to fastq in an endedness-specific manner (i.e. paired endedness is detected and handled correctly).
 
-Currently it's intended for when EGA has provided you with an Aspera box, since the Java client is useless and the Python client doesn't work with .gpg-encrypted files. But they're apparently re-encrypting all their files, so this workflow will be modified to use the Python client in due course.
+Currently the pipeline is intended for when EGA has provided you with an Aspera box, since the Java client is useless and the Python client doesn't work with .gpg-encrypted files. But they're apparently re-encrypting all their files, so this workflow will be modified to use the Python client in due course.
 
 ## Prerequisites
 
@@ -84,6 +84,7 @@ The result will be:
  * FASTQ-converted files at data/EGAD00011223344/(library strategy)/fastq
 
 If there are random failures you can resume by repeating the above command.
+
 
 ## Clean up
 
