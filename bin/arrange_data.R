@@ -72,7 +72,7 @@ runs <- list.files(file.path(opt$metadata_dir, opt$dataset_id, 'xmls', 'runs'), 
 
 run_xml_content <- lapply(runs, function(x){
   run <- read_xml(x)
-  run_info <- data.frame(do.call(rbind, lapply(as_list(read_xml(x))$RUN_SET$RUN$DATA_BLOCK$FILES, function(y) attributes(y))), stringsAsFactors=F)
+  run_info <- data.frame(do.call(rbind, lapply(as_list(read_xml(x))$RUN_SET$RUN$DATA_BLOCK$FILES, function(y) unlist(attributes(y)))), stringsAsFactors=F)
   run_info$primary_id <- unlist(as_list(run)$RUN_SET$RUN$IDENTIFIERS$PRIMARY_ID)
   run_info$ega_run_id <- basename(sub('.run.xml', '', x))
   run_info
@@ -138,4 +138,5 @@ if ( ! is.na(opt$dbox_listing)){
 
 sample_info$ega_dataset_id <- opt$dataset_id
 
+saveRDS(sample_info, "foo.rds")
 write.table(sample_info, opt$output_file, quote = FALSE, row.names=FALSE, sep="\t")
