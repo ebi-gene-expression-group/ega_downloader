@@ -36,7 +36,7 @@ process get_dbox_content {
 
 process make_metadata_table {
 
-    conda 'r-base r-xml2'
+    conda 'r-base r-xml2 r-optparse'
     
     errorStrategy 'ignore'
 
@@ -51,7 +51,7 @@ process make_metadata_table {
         file("${dsId}.merged.csv") into DATASET_CSVS
 
     """
-    arrange_data.R $metadataDir $dataDir $dsId $dbox ${dsId}.merged.csv 
+    arrange_data.R -m $metadataDir -d $dataDir -i $dsId -x $dbox -o ${dsId}.merged.csv 
     """
 }
 
