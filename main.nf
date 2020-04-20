@@ -36,7 +36,7 @@ process get_dbox_content {
 
 process make_metadata_table {
 
-    conda 'r-base r-xml2'
+    conda 'r-base r-xml2 r-optparse'
     
     errorStrategy 'ignore'
 
@@ -51,7 +51,7 @@ process make_metadata_table {
         file("${dsId}.merged.csv") into DATASET_CSVS
 
     """
-    arrange_data.R $metadataDir $dataDir $dsId $dbox ${dsId}.merged.csv 
+    arrange_data.R -m $metadataDir -d $dataDir -i $dsId -x $dbox -o ${dsId}.merged.csv 
     """
 }
 
@@ -223,7 +223,7 @@ process synchronise_pairs {
         set val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), val(baseName), file('read1.fastq.gz'), file('read2.fastq.gz') from FASTQS_FROM_PAIRED
 
     output:
-        set file( "matched/${read1}" ), file("matched/${read2}") into MATCHED_PAIRED_FASTQS
+        set file( "${baseName}_1.fastq.gz" ), file("${baseName}_2.fastq.gz") into MATCHED_PAIRED_FASTQS
 
     beforeScript 'mkdir -p matched && mkdir -p unmatched'
 
@@ -232,8 +232,8 @@ process synchronise_pairs {
         zcat read2.fastq.gz > read2.fastq
         fastq_pair read1.fastq read2.fastq
 
-        gzip read1.paired.fq && mv read1.paired.fq.gz ${baseName}_1.fastq.gz
-        gzip read2.paired.fq && mv read2.paired.fq.gz ${baseName}_2.fastq.gz
+        gzip read1.fastq.paired.fq && mv read1.fastq.paired.fq.gz ${baseName}_1.fastq.gz
+        gzip read2.fastq.paired.fq && mv read2.fastq.paired.fq.gz ${baseName}_2.fastq.gz
 
         rm -f read1.fastq read2.fastq
     """          
