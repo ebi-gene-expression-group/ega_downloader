@@ -3,35 +3,57 @@
 dataDir = "${workflow.launchDir}/${params.dataDir}"
 metadataDir = "${workflow.launchDir}/${params.metadataDir}"
 egaCredentialsDir = "${workflow.launchDir}/${params.egaCredentialsDir}"
+fetchMode = params.fetchMode
 
 DATASETS = Channel.fromPath( "$dataDir/EGAD*", type: 'dir', checkIfExists: true )
 
 DATASETS.map{ dir -> tuple( file(dir).getName(), dir ) }
     .set {KEYED_DATASETS}
 
-process get_dbox_content {
 
-    cache 'lenient'
-    
-    input:
-        set val(dsId), file(dsPath) from KEYED_DATASETS
+if (fetchMode == 'aspera'){
+    process get_dbox_content {
 
-    output:
-        set val(dsId), file('dbox_content') into DATASET_DBOXES
+        cache 'lenient'
+        
+        input:
+            set val(dsId), file(dsPath) from KEYED_DATASETS
 
-    """
-    credentialsFile=$egaCredentialsDir/${dsId}.txt
-    if [ ! -e \$credentialsFile ]; then
-        echo "Credentials file missing at \$credentialsFile" 1>&2
-        exit 1
-    fi
+        output:
+            set val(dsId), file('dbox_content') into AVAILABLE_FILES
 
-    user=\$(grep "^user=" \$credentialsFile | sed s/user=//)
-    password=\$(grep "^password=" \$credentialsFile | sed s/password=//)
-    export ASPERA_SCP_PASS="\$password";   
+        """
+        credentialsFile=$egaCredentialsDir/${dsId}.txt
+        if [ ! -e \$credentialsFile ]; then
+            echo "Credentials file missing at \$credentialsFile" 1>&2
+            exit 1
+        fi
 
-    ascp --ignore-host-key -d -QTl 100m \${user}@xfer.crg.eu:dbox_content \$(pwd)/
-    """
+        user=\$(grep "^user=" \$credentialsFile | sed s/user=//)
+        password=\$(grep "^password=" \$credentialsFile | sed s/password=//)
+        export ASPERA_SCP_PASS="\$password";   
+
+        ascp --ignore-host-key -d -QTl 100m \${user}@xfer.crg.eu:dbox_content \$(pwd)/
+        """
+    }
+}
+else{
+    process get_ega_file_listing {
+        
+        cache 'lenient'
+
+        conda 'pyega3'
+
+        input:
+            set val(dsId), file(dsPath) from KEYED_DATASETS
+        
+        output:
+            set val(dsId), file('pyega3_file_listing.txt') into AVAILABLE_FILES  
+
+        """
+        pyega3 -d -cf $egaCredentialsDir/ega.credentials files $dsId | grep 'File ID\\|EGAF' | sed 's/File /File_/g' | sed 's/Check /Check_/' | sed -e "s/ \\+/\\t/g" > pyega3_file_listing.txt
+        """  
+    }
 }
 
 process make_metadata_table {
@@ -45,75 +67,117 @@ process make_metadata_table {
     publishDir "$metadataDir/$dsId", mode: 'copy', overwrite: true
 
     input:
-        set val(dsId), file(dbox) from DATASET_DBOXES
+        set val(dsId), file(file_listing) from AVAILABLE_FILES
 
     output:
         file("${dsId}.merged.csv") into DATASET_CSVS
 
     """
-    arrange_data.R -m $metadataDir -d $dataDir -i $dsId -x $dbox -o ${dsId}.merged.csv 
+    # Do things slightly differently depending on where the file listing came from
+    param='-y'
+    if [ file_listing = 'dbox_content' ]; then
+        param='-x'
+    fi            
+    
+    arrange_data.R -m $metadataDir -d $dataDir -i $dsId \$param $file_listing -o ${dsId}.merged.csv 
     """
 }
 
-DATASET_CSVS
-    .splitCsv( header:true, sep:"\t" )
-    .map{ row -> tuple(row['file'], row['ega_dataset_id'], row['biosample_id'], row['ega_run_id'], row['library_layout'], row['library_strategy'], row['dbox_path'], file(row['dbox_path']).getName()) }
-    .set{
-        DOWNLOAD_LIST
+if (fetchMode == 'aspera'){
+
+    DATASET_CSVS
+        .splitCsv( header:true, sep:"\t" )
+        .map{ row -> tuple(row['file'], row['ega_dataset_id'], row['biosample_id'], row['ega_run_id'], row['library_layout'], row['library_strategy'], row['remote_path'], file(row['remote_path']).getName()) }
+        .set{
+            DOWNLOAD_LIST
+        }
+
+    process get_dbox_files {
+        
+        storeDir "$dataDir/$dsId/encrypted"
+
+        errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }
+        
+        cache 'lenient'
+        
+        maxForks 10
+     
+        input:
+            set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), val(dboxPath), val(dboxFileName) from DOWNLOAD_LIST
+
+        output:
+            set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(dboxFileName) into ENCRYPTED_LINES
+
+        """
+        credentialsFile=$egaCredentialsDir/${dsId}.txt
+        if [ ! -e \$credentialsFile ]; then
+            echo "Credentials file missing at \$credentialsFile" 1>&2
+            exit 1
+        fi
+
+        user=\$(grep "^user=" \$credentialsFile | sed s/user=//)
+        password=\$(grep "^password=" \$credentialsFile | sed s/password=//)
+        export ASPERA_SCP_PASS="\$password";   
+     
+        ascp --ignore-host-key -k 1 --partial-file-suffix=PART -QTl 100m \${user}@xfer.crg.eu:$dboxPath \$(pwd)/
+        """
     }
 
-process get_dbox_files {
-    
-    storeDir "$dataDir/$dsId/encrypted"
+    process decrypt {
+        
+        storeDir "$dataDir/$dsId/$libraryStrategy"
 
-    errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }
-    
-    cache 'lenient'
-    
-    maxForks 10
- 
-    input:
-        set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), val(dboxPath), val(dboxFileName) from DOWNLOAD_LIST
+        input:
+            set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(encryptedFile) from ENCRYPTED_LINES
 
-    output:
-        set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(dboxFileName) into ENCRYPTED_LINES
+        output:
+            set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(fileName) into DECRYPTED_LINES
 
-    """
-    credentialsFile=$egaCredentialsDir/${dsId}.txt
-    if [ ! -e \$credentialsFile ]; then
-        echo "Credentials file missing at \$credentialsFile" 1>&2
-        exit 1
-    fi
+        """
+        credentialsFile=$egaCredentialsDir/${dsId}.txt
+        if [ ! -e \$credentialsFile ]; then
+            echo "Credentials file missing at \$credentialsFile" 1>&2
+            exit 1
+        fi
 
-    user=\$(grep "^user=" \$credentialsFile | sed s/user=//)
-    password=\$(grep "^password=" \$credentialsFile | sed s/password=//)
-    export ASPERA_SCP_PASS="\$password";   
- 
-    ascp --ignore-host-key -k 1 --partial-file-suffix=PART -QTl 100m \${user}@xfer.crg.eu:$dboxPath \$(pwd)/
-    """
+        secret=\$(grep "^secret=" \$credentialsFile | sed s/secret=//)
+        echo \$secret > secret.txt
+        java -jar ${workflow.projectDir}/bin/decryptor.jar secret.txt $encryptedFile 
+        """
+    }
 }
-
-process decrypt {
+else{
     
-    storeDir "$dataDir/$dsId/$libraryStrategy"
+    DATASET_CSVS
+        .splitCsv( header:true, sep:"\t" )
+        .map{ row -> tuple(row['file'], row['ega_dataset_id'], row['biosample_id'], row['ega_run_id'], row['library_layout'], row['library_strategy'], row['remote_path'], file(row['remote_path']).getName(), row['file_id']) }
+        .set{
+            DOWNLOAD_LIST
+        }
 
-    input:
-        set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(encryptedFile) from ENCRYPTED_LINES
+    process get_ega_files {
+        
+        storeDir "$dataDir/$dsId/encrypted"
 
-    output:
-        set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(fileName) into DECRYPTED_LINES
+        errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }
+        
+        cache 'lenient'
+        
+        maxForks 10
+     
+        input:
+            set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), val(remotePath), val(remoteFileName), val(fileId) from DOWNLOAD_LIST
 
-    """
-    credentialsFile=$egaCredentialsDir/${dsId}.txt
-    if [ ! -e \$credentialsFile ]; then
-        echo "Credentials file missing at \$credentialsFile" 1>&2
-        exit 1
-    fi
+        output:
+            set val(fileName), val(dsId), val(biosampleId), val(egaRunId), val(libraryLayout), val(libraryStrategy), file(fileName) into DECRYPTED_LINES
 
-    secret=\$(grep "^secret=" \$credentialsFile | sed s/secret=//)
-    echo \$secret > secret.txt
-    java -jar ${workflow.projectDir}/bin/decryptor.jar secret.txt $encryptedFile 
-    """
+        """
+        pyega3 -d -cf $egaCredentialsDir/ega.credentials fetch $fileId
+        mv $fileId/$fileName .
+        """
+
+    }
+
 }
 
 DECRYPTED_LINES
