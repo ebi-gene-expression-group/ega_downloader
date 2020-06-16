@@ -157,7 +157,7 @@ else{
 
     process get_ega_files {
         
-        storeDir "$dataDir/$dsId/encrypted"
+        storeDir "$dataDir/$dsId/$libraryStrategy"
 
         errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }
         
