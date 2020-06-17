@@ -37,6 +37,13 @@ option_list = list(
       help = "dbox listing (when aspera being used)- to check files indicated in metadata are present"
   ),
   make_option(
+    c("-y", "--ega-listing"),
+      action = "store",
+      default = NA,
+      type = 'character',
+      help = "File listing as derived from EGA client (exlusive with -x)"
+  ),
+  make_option(
     c("-o", "--output-file"),
       action = "store",
       default = NA,
@@ -105,15 +112,20 @@ common_fields <- Reduce(intersect, lapply(sample_xml_content, names))
 sample_xml_info <- data.frame(do.call(rbind, lapply(sample_xml_content, function(x) x[common_fields])), stringsAsFactors = FALSE)
 sample_info <- merge(sample_info, sample_xml_info, by = 'ega_sample_id')
 
-if ( ! is.na(opt$dbox_listing)){
+if ( ! is.na(opt$dbox_listing) || ! is.na(opt$ega_listing)){
 
     # Now check the file is actually available for download
 
-    dbox_files <- readLines(opt$dbox_listing)
+    if (! is.na(opt$dbox_listing)){
+        ega_files <- readLines(opt$dbox_listing)
+    }else{
+        ega_file_info <- read.delim(opt$ega_listing)
+        ega_files <- ega_file_info$File_name
+    }
 
     # Assume that the dbox entry contains the file name and the run ID
 
-    matches <- apply(sample_info, 1, function(x) which(grepl(x['ega_run_id'], dbox_files) & grepl(x['filename'], dbox_files)))
+    matches <- apply(sample_info, 1, function(x) which(grepl(x['ega_run_id'], ega_files) & grepl(x['filename'], ega_files)))
     names(matches) <- sample_info$filename
     lengths <- unlist(lapply(matches, length))
 
@@ -130,8 +142,14 @@ if ( ! is.na(opt$dbox_listing)){
         q(status=1)
     }
 
-    sample_info$dbox_path = dbox_files[unlist(matches)]
-    sample_info$file <- sub('.crypt', '', basename(sample_info$dbox_path))
+    if ( ! is.na(opt$dbox_listing)){
+        sample_info$remote_path = ega_files[unlist(matches)]
+        sample_info$file <- sub('.crypt', '', basename(sample_info$remote_path))
+    }else{
+        sample_info$remote_path = ega_file_info[matches,'File_name']
+        sample_info$file <- sub('.cip', '', basename(sample_info$remote_path))
+        sample_info$file_id <- ega_file_info[matches, 'File_ID']
+    }
 }
 
 # Stash the dataset ID in the file for convenience

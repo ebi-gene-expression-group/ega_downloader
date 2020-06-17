@@ -2,12 +2,20 @@
 
 This is a Nextflow workflow designed to download data for an EGA dataset and arrange in a form suitable for analysis, with raw FASTQ files and a metadata table. BAM/ CRAM files are converted to fastq in an endedness-specific manner (i.e. paired endedness is detected and handled correctly).
 
-Currently the pipeline is intended for when EGA has provided you with an Aspera box, since the Java client is useless and the Python client doesn't work with .gpg-encrypted files. But they're apparently re-encrypting all their files, so this workflow will be modified to use the Python client in due course.
+There are two operating modes:
+
+ * Use the pyega3 client to pull files directly from EGA. This will only work for datasets without the older .gpg encryption, with all files using .cip.
+ * Download files from a 'dropbox' provided to you from EGA staff. This is usually done where there are issues using the official client.
+
+Note that there is no provision to use the old EGA Java client, which we have found difficult to use successfully.
+
+In both cases the idea is to make sure that the files available correspond to those stated in the dataset metadata, and to parallelise the download of those files.
 
 ## Prerequisites
 
  * [Nextflow](https://www.nextflow.io/) installed
- * Aspera access to the dataset of interest. EGA will give you a download.sh script containing username and password, and a 'secret' for decrypting the files.
+ * Formal access to the datasets of interest in EGA
+ * For the dropbox download method, Aspera access to the dataset of interest. EGA will give you a download.sh script containing username and password, and a 'secret' for decrypting the files.
 
 ## Setup
 
@@ -17,6 +25,22 @@ Currently the pipeline is intended for when EGA has provided you with an Aspera 
  * Create 'data', 'metadata' and 'credentials' subdirectories
 
 ### Set up authentication
+
+#### Python client method
+
+The python client authenticates via your user account, place a file called 'ega.credentials' in the credentials folder. It will look like:
+
+```
+{
+        "username": "me@foo.bar.uk",
+        "password": "abc123",
+        "client_secret": "klj;lkj;lkajf;lkja;lkfjsa;lkfja;lkfja;lsfdkja;lfkja;slfkjas;flkja;flkjas;flkjas;lkj"
+}
+``` 
+
+See the [EGA documentation](https://ega-archive.org/download/downloader-quickguide-APIv3) for more info.
+
+#### Dropbox method
 
 The 'download.sh' script EGA provides will download all the data for a dataset using Aspera, but to a fairly unpredictable subdirectory location. So we just extract the authentication information:
 
@@ -73,13 +97,22 @@ Clone this repository to the top directory. You'll need to copy EGA's 'decryptor
 Then run:
 
 ```
-./ega_tools/main.nf -resume
+./ega_tools/main.nf -resume -fetchMode=pyclient
 ```
+
+... to use the python client to fetch files, or:
+
+
+```
+./ega_tools/main.nf -resume -fetchMode=aspera
+```
+
+... to pull files from an Aspera dropbox.
 
 The result will be:
 
  * A metadata summary at a location like metadata/EGAD00011223344/ EGAD00011223344.merged.csv
- * Encrypted downloads at e.g. data/EGAD00011223344/encrypted
+ * Encrypted downloads at e.g. data/EGAD00011223344/encrypted (dropbox method only)
  * Decrypted files at data/(library strategy)/EGAD00011223344
  * FASTQ-converted files at data/EGAD00011223344/(library strategy)/fastq
 
