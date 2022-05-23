@@ -92,7 +92,7 @@ We now have all the information we need to download and structure the raw data.
 
 ## Run download pipeline
 
-Clone this repository to the top directory. You'll need to copy EGA's 'decryptor.jar' app into the bin/ directory of this repo (since I didn't think it appropriate to redistribute that file).
+Clone this repository to the top directory. For Aspera dropbox, you'll need to copy EGA's 'decryptor.jar' app into the bin/ directory of this repo (since I didn't think it appropriate to redistribute that file).
 
 Then run:
 
