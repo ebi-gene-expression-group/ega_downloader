@@ -42,6 +42,7 @@ else{
         
         cache 'lenient'
 
+        // update to v5 or use the API directly
         conda 'pyega3'
 
         input:
