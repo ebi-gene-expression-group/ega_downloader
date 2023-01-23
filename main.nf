@@ -42,7 +42,7 @@ else{
         
         cache 'lenient'
 
-        conda 'pyega3'
+        conda 'pyega3>=5.0.1'
 
         input:
             set val(dsId), file(dsPath) from KEYED_DATASETS
@@ -162,6 +162,8 @@ else{
         errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }
         
         cache 'lenient'
+
+        conda 'pyega3>=5.0.1'
         
         maxForks 10
      

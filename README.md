@@ -4,8 +4,8 @@ This is a Nextflow workflow designed to download data for an EGA dataset and arr
 
 There are two operating modes:
 
- * Use the pyega3 client to pull files directly from EGA. This will only work for datasets without the older .gpg encryption, with all files using .cip.
- * Download files from a 'dropbox' provided to you from EGA staff. This is usually done where there are issues using the official client.
+ * Use the [pyega3](https://github.com/EGA-archive/ega-download-client) client to pull files directly from EGA. This will only work for datasets without the older .gpg encryption, with all files using .cip.
+ * Download files from a 'dropbox' provided to you from EGA staff. This is usually done where there are issues using the official client (this mode is currently deprecated).
 
 Note that there is no provision to use the old EGA Java client, which we have found difficult to use successfully.
 
