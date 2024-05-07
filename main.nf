@@ -10,7 +10,7 @@ DATASETS = Channel.fromPath( "$dataDir/EGAD*", type: 'dir', checkIfExists: true 
 DATASETS.map{ dir -> tuple( file(dir).getName(), dir ) }
     .set {KEYED_DATASETS}
 
-
+// aspera is to be deprecated, so we will use pyega3 to fetch the files
 if (fetchMode == 'aspera'){
     process get_dbox_content {
 
@@ -39,20 +39,24 @@ if (fetchMode == 'aspera'){
 }
 else{
     process get_ega_file_listing {
+
+        // This process is not strictly necessary, but it is useful to have a cached file listing.
+        // Current versipn pf pyega3 can be provided directly with the dataset ID (EGAD*) and this will
+        // directly download all relevant files without the need of storing them into a txt file
         
         cache 'lenient'
 
-        conda 'pyega3>=5.0.1'
+        conda 'pyega3>=5.2.0 python>=3.9.19'
 
         input:
             set val(dsId), file(dsPath) from KEYED_DATASETS
         
         output:
-            set val(dsId), file('pyega3_file_listing.txt') into AVAILABLE_FILES  
+            set val(dsId), file('pyega3_file_listing.txt') into AVAILABLE_FILES
 
         """
         pyega3 -d -cf $egaCredentialsDir/ega.credentials files $dsId | grep 'File ID\\|EGAF' | sed 's/File /File_/g' | sed 's/Check /Check_/' | sed -e "s/ \\+/\\t/g" > pyega3_file_listing.txt
-        """  
+        """
     }
 }
 
@@ -77,7 +81,7 @@ process make_metadata_table {
     param='-y'
     if [ file_listing = 'dbox_content' ]; then
         param='-x'
-    fi            
+    fi
     
     arrange_data.R -m $metadataDir -d $dataDir -i $dsId \$param $file_listing -o ${dsId}.merged.csv 
     """
@@ -163,7 +167,7 @@ else{
         
         cache 'lenient'
 
-        conda 'pyega3>=5.0.1'
+        conda 'pyega3>=5.2.0 python>=3.9.19'
         
         maxForks 10
      

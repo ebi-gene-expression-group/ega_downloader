@@ -97,14 +97,14 @@ Clone this repository to the top directory. For Aspera dropbox, you'll need to c
 Then run:
 
 ```
-./ega_tools/main.nf -resume -fetchMode=pyclient
+./ega_downloader/main.nf -resume -fetchMode=pyclient
 ```
 
 ... to use the python client to fetch files, or:
 
 
 ```
-./ega_tools/main.nf -resume -fetchMode=aspera
+./ega_downloader/main.nf -resume -fetchMode=aspera
 ```
 
 ... to pull files from an Aspera dropbox.
