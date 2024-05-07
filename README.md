@@ -38,7 +38,7 @@ The python client authenticates via your user account, place a file called 'ega.
 }
 ``` 
 
-See the [EGA documentation](https://ega-archive.org/download/downloader-quickguide-APIv3) for more info.
+See the [EGA documentation](https://ega-archive.org/access/download/files/pyega3) for more info.
 
 #### Dropbox method
 
