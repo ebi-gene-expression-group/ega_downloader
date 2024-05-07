@@ -41,7 +41,7 @@ else{
     process get_ega_file_listing {
 
         // This process is not strictly necessary, but it is useful to have a cached file listing.
-        // Current versipn pf pyega3 can be provided directly with the dataset ID (EGAD*) and this will
+        // Current version pf pyega3 can be provided directly with the dataset ID (EGAD*) and this will
         // directly download all relevant files without the need of storing them into a txt file
         
         cache 'lenient'
@@ -82,8 +82,8 @@ process make_metadata_table {
     if [ file_listing = 'dbox_content' ]; then
         param='-x'
     fi
-    
-    arrange_data.R -m $metadataDir -d $dataDir -i $dsId \$param $file_listing -o ${dsId}.merged.csv 
+
+    arrange_data.R -m $metadataDir -d $dataDir -i $dsId \$param $file_listing -o ${dsId}.merged.csv
     """
 }
 
