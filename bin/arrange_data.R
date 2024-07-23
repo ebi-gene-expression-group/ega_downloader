@@ -1,9 +1,14 @@
 #!/usr/bin/env Rscript 
 
+# arrange_data.R -m $metadataDir -i $dsId  -o ${dsId}.merged.csv 
+
 suppressPackageStartupMessages(library('xml2'))
 suppressPackageStartupMessages(library('optparse'))
+suppressPackageStartupMessages(library('jsonlite'))
+suppressPackageStartupMessages(library('dplyr'))
 
-# Parse options
+
+# parse options
 
 cl <- commandArgs(trailingOnly = TRUE)
 
@@ -13,148 +18,232 @@ option_list = list(
       action = "store",
       default = NA,
       type = 'character',
-      help = "Path to a top-level directory where metadata are stored"
-  ),
-  make_option(
-    c("-d", "--data-dir"),
-      action = "store",
-      default = NA,
-      type = 'character',
-      help = "Path to a top-level directory where data are stored"
+      help = "Path to a top-level directory where CSV formatted metadata are stored"
   ),
   make_option(
     c("-i", "--dataset-id"),
       action = "store",
       default = NA,
       type = 'character',
-      help = "Dataset ID- subdirectories named like this should be found in data and metadata directories"
-  ),
-  make_option(
-    c("-x", "--dbox-listing"),
-      action = "store",
-      default = NA,
-      type = 'character',
-      help = "dbox listing (when aspera being used)- to check files indicated in metadata are present"
-  ),
-  make_option(
-    c("-y", "--ega-listing"),
-      action = "store",
-      default = NA,
-      type = 'character',
-      help = "File listing as derived from EGA client (exlusive with -x)"
+      help = "Dataset ID"
   ),
   make_option(
     c("-o", "--output-file"),
       action = "store",
       default = NA,
       type = 'character',
-      help = "dbox listing (when aspera being used)- to check files indicated in metadata are present"
+      help = "Output filename"
     )
 )
 
 opt <- parse_args(OptionParser(option_list = option_list), convert_hyphens_to_underscores = TRUE)
 
+
 for (required in c('metadata_dir', 'dataset_id', 'output_file')){
     if (is.na(opt[[required]])){
-      die(paste0('ERROR: No', required, 'specified'))
+        stop(paste0('ERROR: No ', required, ' specified'))
     }
 } 
 
-# Read in the file that will allow us to derive a list of runs (i.e not analyses)
+# check if EGA metadata files exist
+file_names <- c(
+    'sample_file.csv',
+    'dataset.csv',
+    'samples.csv',
+    'study_experiment_run_sample.csv',
+    'experiments.csv',
+    'runs.csv',
+    'studies.csv'
+)
 
-print(file.path(opt$metadata_dir, opt$dataset_id, 'delimited_maps', "Study_Experiment_Run_sample.map"))
+files_to_check <- file.path(opt$metadata_dir, file_names)
 
-sample_info <- read.delim(file.path(opt$metadata_dir, opt$dataset_id, 'delimited_maps', "Study_Experiment_Run_sample.map"), header=FALSE, stringsAsFactors = FALSE)
-colnames(sample_info) <- c('ega_study_id', 'study_title', 'study_type', 'instrument_platform', 'instrument_model', 'library_layout', 'maybe_read_count', 'library_strategy', 'library_source', 'molecule', 'ega_experiment_id', 'ega_run_id', 'centre', 'unknown', 'ega_sample_id')
-sample_info$file_key <- paste(sample_info$ega_sample_id, sample_info$ega_run_id, sep='-')
+file_existence <- sapply(files_to_check, file.exists)
 
-if (max(table(sample_info$file_key)) > 1){
-    write("Non-unique sample/ run pairs in Study_Experiment_Run_sample.map", stderr())
-    q(status=1)
+if (any(!file_existence)) {
+    missing_files <- files_to_check[!file_existence]
+    error_message <- paste("ERROR: The following files do not exist:\n", paste(missing_files, collapse = "\n"))
+    stop(error_message)
 }
 
-# Generate a run/file mapping from the XMLs
+cat("All EGA metadata files exist.\n")
 
-runs <- list.files(file.path(opt$metadata_dir, opt$dataset_id, 'xmls', 'runs'), full.names = TRUE)
 
-run_xml_content <- lapply(runs, function(x){
-  run <- read_xml(x)
-  run_info <- data.frame(do.call(rbind, lapply(as_list(read_xml(x))$RUN_SET$RUN$DATA_BLOCK$FILES, function(y) unlist(attributes(y)))), stringsAsFactors=F)
-  run_info$primary_id <- unlist(as_list(run)$RUN_SET$RUN$IDENTIFIERS$PRIMARY_ID)
-  run_info$ega_run_id <- basename(sub('.run.xml', '', x))
-  run_info
-})
+# 1 create metadata table and update with information from sample_file.csv
+sample_file <- read.csv( paste0(opt$metadata_dir,'/sample_file.csv') )
 
-common_fields <- Reduce(intersect, lapply(run_xml_content, names))
-run_file <- data.frame(do.call(rbind, lapply(run_xml_content, function(x) x[, common_fields])), stringsAsFactors = FALSE)
-run_file$filename <- gsub('/', '_', run_file$filename)
+metadata <- as.data.frame(matrix(NA, nrow=nrow(sample_file), ncol= 29) )
 
-sample_info <- merge(sample_info, run_file, all.x = TRUE, sort = FALSE)
-sample_info$filename <- sub('(.*)\\.gpg', '\\1', sample_info$filename)
-sample_info$filename <- sub('(.*)\\.cip', '\\1', sample_info$filename)
+colnames(metadata) <- c(
+    "ega_sample_id",             
+    "sample_alias",              
+    "ega_run_id",                
+    "ega_study_id",              
+    "study_title",               
+    "study_type",                
+    "instrument_platform",       
+    "instrument_model",          
+    "library_layout",            
+    "library_name",              
+    "library_strategy",          
+    "library_source",            
+    "library_selection",         
+    "ega_experiment_id",         
+    "filename",                  
+    "filetype",                  
+    "gender",                    
+    "phenotype",                 
+    "ega_dataset_id",            
+    "file_accession_id",         
+    "submission_accession_id",   
+    "created_at",                
+    "edited_at",                 
+    "biosample_id",              
+    "library_construction_protocol",
+    "paired_nominal_length",     
+    "paired_nominal_sdev",       
+    "design_description",        
+    "total_num_samples"          
+)
 
-# Derive sample metadata from sample XMLs
 
-sample_files <- list.files(file.path(opt$metadata_dir, opt$dataset_id, 'xmls', 'samples'), full.names = TRUE)
+metadata <- metadata %>%
+    mutate(
+        ega_sample_id = sample_file$sample_accession_id,
+        filename = sample_file$file_name,
+        sample_alias = sample_file$sample_alias,
+        file_accession_id = sample_file$file_accession_id
+    )
 
-sample_xml_content <- lapply(sample_files, function(sample_file){
-  sample <- read_xml(sample_file)
-  fields <- lapply(as_list(sample)$SAMPLE_SET$SAMPLE$SAMPLE_ATTRIBUTES, function(x) unlist(x[['TAG']]))
-  values <- lapply(as_list(sample)$SAMPLE_SET$SAMPLE$SAMPLE_ATTRIBUTES, function(x) unlist(x[['VALUE']]))
-  sample_info <- structure(values, names = fields)
-  sample_info$ena_sample_id <- unlist(as_list(sample)$SAMPLE_SET$SAMPLE$IDENTIFIERS$PRIMARY_ID)
-  sample_info$ega_sample_id <- basename(sub('.sample.xml', '', sample_file))
-  
-  unlist(sample_info)
-})
 
-common_fields <- Reduce(intersect, lapply(sample_xml_content, names))
-sample_xml_info <- data.frame(do.call(rbind, lapply(sample_xml_content, function(x) x[common_fields])), stringsAsFactors = FALSE)
-sample_info <- merge(sample_info, sample_xml_info, by = 'ega_sample_id')
+# 2 update metadata with information from dataset.csv
+dataset <- read.csv( paste0(opt$metadata_dir,'/dataset.csv') )
 
-if ( ! is.na(opt$dbox_listing) || ! is.na(opt$ega_listing)){
+metadata <- metadata %>%
+    mutate(
+        ega_dataset_id = dataset$accession_id,
+        submission_accession_id = dataset$submission_accession_id,
+        created_at = dataset$created_at,
+        edited_at = dataset$edited_at,
+        total_num_samples = dataset$num_samples
+    )
 
-    # Now check the file is actually available for download
 
-    if (! is.na(opt$dbox_listing)){
-        ega_files <- readLines(opt$dbox_listing)
-    }else{
-        ega_file_info <- read.delim(opt$ega_listing)
-        ega_files <- ega_file_info$File_name
+# 3 update metadata with information from samples.csv
+samples <- read.csv( paste0(opt$metadata_dir,'/samples.csv') )
+
+for (i in 1:length(samples$accession_id) ) {
+    i_m <- which(metadata$ega_sample_id == samples$accession_id[i] )
+
+    if ("phenotype" %in% names(samples)) {
+        metadata$phenotype[i_m] <- samples$phenotype[i]
     }
-
-    # Assume that the dbox entry contains the file name and the run ID
-
-    matches <- apply(sample_info, 1, function(x) which(grepl(x['ega_run_id'], ega_files) & grepl(x['filename'], ega_files)))
-    names(matches) <- sample_info$filename
-    lengths <- unlist(lapply(matches, length))
-
-    if (any(lengths != 1)){
-        missing <- names(lengths)[lengths == 0]
-        if (length(missing) > 0){
-            write(paste("can't find the following in the downloads:", paste(missing, collapse=', ')), stderr())
+    if ("biological_sex" %in% names(samples)) {
+        metadata$gender[i_m] <- samples$biological_sex[i]
+    }        
+        
+    # add extra attributes
+    if (i == 1) {
+        # parse the JSON string
+        extra_attributes <- fromJSON( samples$extra_attributes[i] )
+        # removes all parentheses and replace spaces with underscores in tag
+        extra_attributes$tag <- gsub("[()]", "", gsub(" ", "_", extra_attributes$tag))
+        
+        unique_tags <- unique(extra_attributes$tag)
+        
+        # add columns to metadata if they don't exist
+        for (tag in unique_tags) {
+            
+            if (!tag %in% names(metadata)) {
+                metadata[[tag]] <- NA
+            }
         }
-        multiple <- names(lengths)[lengths > 1]
-        if (length(multiple) > 0){
-            write(paste("The following match multiple files in downloads:", paste(multiple, collapse=', ')), stderr())
+        
+        # add .unit columns for tags with non-NA, non-empty unit
+        for (i in 1:nrow(extra_attributes)) {
+            tag <- extra_attributes$tag[i]
+            unit <- extra_attributes$unit[i]
+            if (!is.na(unit) && unit != "") {
+                unit_col <- paste0(tag, ".unit")
+                if (!unit_col %in% names(metadata)) {
+                    metadata[[unit_col]] <- NA
+                }
+            }
         }
-
-        q(status=1)
-    }
-
-    if ( ! is.na(opt$dbox_listing)){
-        sample_info$remote_path = ega_files[unlist(matches)]
-        sample_info$file <- sub('.crypt', '', basename(sample_info$remote_path))
-    }else{
-        sample_info$remote_path = ega_file_info[matches,'File_name']
-        sample_info$file <- sub('.cip', '', basename(sample_info$remote_path))
-        sample_info$file_id <- ega_file_info[matches, 'File_ID']
+        # add values
+        for (j in 1:length( extra_attributes$tag ) ){
+            if ( extra_attributes$tag[j] %in% names(metadata) ) {
+                metadata[i_m, extra_attributes$tag[j] ] <- extra_attributes$value[j]
+            }
+        }
+    
+    } else {
+        extra_attributes <- fromJSON( samples$extra_attributes[i] )
+        extra_attributes$tag <- gsub("[()]", "", gsub(" ", "_", extra_attributes$tag))
+        # add values
+        for (j in 1:length( extra_attributes$tag ) ){
+            if ( extra_attributes$tag[j] %in% names(metadata) ) {
+                metadata[i_m, extra_attributes$tag[j] ] <- extra_attributes$value[j]
+            }
+        }
     }
 }
 
-# Stash the dataset ID in the file for convenience
 
-sample_info$ega_dataset_id <- opt$dataset_id
+# 4 update metadata with information from study_experiment_run_sample.csv
+study_experiment_run_sample <-  read.csv( paste0(opt$metadata_dir,'/study_experiment_run_sample.csv') )
 
-saveRDS(sample_info, "foo.rds")
-write.table(sample_info, opt$output_file, quote = FALSE, row.names=FALSE, sep="\t")
+matched_indices <- match(metadata$sample_alias, study_experiment_run_sample$sample_alias)
+
+metadata$biosample_id <- study_experiment_run_sample$biosample_id[matched_indices]
+metadata$ega_run_id <- study_experiment_run_sample$run_accession_id[matched_indices]
+metadata$ega_experiment_id <- study_experiment_run_sample$experiment_accession_id[matched_indices]
+
+metadata$library_strategy <- study_experiment_run_sample$library_strategy[matched_indices]
+metadata$library_source <- study_experiment_run_sample$library_source[matched_indices]
+metadata$library_layout <- study_experiment_run_sample$library_layout[matched_indices]
+
+metadata$library_name <- study_experiment_run_sample$library_name[matched_indices]
+metadata$library_selection <- study_experiment_run_sample$library_selection[matched_indices]
+metadata$study_title <- study_experiment_run_sample$study_title[matched_indices]
+metadata$study_type <- study_experiment_run_sample$study_type[matched_indices]
+metadata$instrument_platform <- study_experiment_run_sample$instrument_platform[matched_indices]
+metadata$instrument_model <- study_experiment_run_sample$instrument_model[matched_indices]
+
+
+
+# 5 update metadata with information from experiments.csv
+experiments <- read.csv( paste0(opt$metadata_dir,'/experiments.csv') )
+
+matched_indices <- match(metadata$ega_experiment_id, experiments$accession_id)
+
+metadata$ega_study_id <- experiments$study_accession_id[matched_indices]
+metadata$library_construction_protocol <- experiments$library_construction_protocol[matched_indices]
+metadata$paired_nominal_length <- experiments$paired_nominal_length[matched_indices]
+metadata$paired_nominal_sdev <- experiments$paired_nominal_sdev[matched_indices]
+metadata$design_description <- experiments$design_description[matched_indices]
+
+# 6 update metadata with information from runs.csv
+runs <- read.csv( paste0(opt$metadata_dir,'/runs.csv') )
+
+matched_indices <- match(metadata$ega_run_id, runs$accession_id)
+
+metadata$filetype <- runs$run_file_type[matched_indices]
+
+# 7 update metadata with information from studies.csv
+studies <- read.csv( paste0(opt$metadata_dir,'/studies.csv') )
+
+if (nrow(studies) == 1){
+    extra_attributes_study <- fromJSON( studies$extra_attributes )
+    extra_attributes_study$tag <- gsub("[()]", "", gsub(" ", "_", extra_attributes_study$tag))
+    
+    if (!extra_attributes_study$tag %in% names(metadata)) {
+        metadata[[extra_attributes_study$tag]] <- NA
+    }
+    metadata[[extra_attributes_study$tag]] <- extra_attributes_study$value 
+}
+
+
+# save file in the form EGADXXXXXX.merged.csv
+write.table(metadata, opt$output_file, quote = FALSE, row.names=FALSE, sep="\t")
+saveRDS(metadata, paste0(opt$dataset_id, '.rds') )
