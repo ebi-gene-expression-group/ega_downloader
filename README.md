@@ -83,5 +83,5 @@ rm -rf .nextflow*
 ```
 
 ## Legacy code
-A previous implementation was used that required BAM/ CRAM files downloaded from EGA to be converted to fastq in an endedness-specific manner (i.e. paired endedness detected and handled correctly). The previous workflow, in addition of using the pyega3 client to pull files directly from EGA, included also the Aspera dropbox method to download files from a 'dropbox' provided to you from EGA staff - this method is now deprecated. See release 1.0.0 for more information on the earlier version.
+A previous implementation was used that required BAM/ CRAM files downloaded from EGA to be converted to fastq in an endedness-specific manner (i.e. paired endedness detected and handled correctly). The previous workflow, in addition of using the pyega3 client to pull files directly from EGA, included also the Aspera dropbox method to download files from a 'dropbox' provided to you from EGA staff - this method is now deprecated. See release v1.0.0 for more information on the earlier version.
 
