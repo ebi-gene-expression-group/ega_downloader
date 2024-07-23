@@ -7,7 +7,7 @@ The  workflow uses the [pyega3](https://github.com/EGA-archive/ega-download-clie
 
 ## Prerequisites
 
- * [Nextflow](https://www.nextflow.io/) installed. Tested with v24.04.3
+ * [Nextflow](https://www.nextflow.io/) installed. Current version tested with nextflow 24.04.3
  * Formal access to the datasets of interest in [EGA](https://ega-archive.org/)
  * SLURM cluster management and job scheduling system
  * An account and access the Seqera Platform (optional)
@@ -37,7 +37,7 @@ See the [EGA documentation](https://ega-archive.org/access/download/files/pyega3
 
 ### Obtain metadata
 
-Download the metadata bundle from the EGA page for each dataset. You'll have the option to download a zipped in TSV, CSV and JSON. Donwload the CSV version, unzip it and  contents place the files under 'metadata':
+Download the metadata bundle from the EGA page for each dataset. You'll have the option to download a zipped file with metadata in TSV, CSV and JSON. Download the CSV version, unzip it and place the files under 'metadata':
 
 ```
 metadata
@@ -59,14 +59,14 @@ source envs.sh
 nextflow run main.nf -c nextflow.config --EGA_DATASET_ID $EGA_DATASET_ID
 ```
 
-or
+... or
 
 
 ```
 nextflow run main.nf -c nextflow.config --EGA_DATASET_ID $EGA_DATASET_ID -with-tower
 ```
 
-... to leverage [Seqera Platform](https://docs.seqera.io/platform/24.1.1/getting-started/deployment-options) capabilities. You'll need to obtain a token and add it to `envs.sh`.
+to leverage the [Seqera Platform](https://docs.seqera.io/platform/24.1.1/getting-started/deployment-options) capabilities. You'll need to obtain a token and add it to `envs.sh`.
 
 The result will be:
 
@@ -79,9 +79,9 @@ The result will be:
 Nexflow leaves a few things lying around, so once the above has succeeded, remove them:
 
 ```
-rm -rf .nextflow* work
+rm -rf .nextflow*
 ```
 
 ## Legacy code
-A previous implementation was used in the past/ That required BAM/ CRAM files to be converted to fastq in an endedness-specific manner (i.e. paired endedness is detected and handled correctly). The previous workflow, in addition of using the [pyega3](https://github.com/EGA-archive/ega-download-client) client to pull files directly from EGA, included also the Aspera dropbox method to download files from a 'dropbox' provided to you from EGA staff. This method is now deprecated. See release 1.0.0 for more information on the earlier version.
+A previous implementation was used that required BAM/ CRAM files downloaded from EGA to be converted to fastq in an endedness-specific manner (i.e. paired endedness detected and handled correctly). The previous workflow, in addition of using the pyega3 client to pull files directly from EGA, included also the Aspera dropbox method to download files from a 'dropbox' provided to you from EGA staff - this method is now deprecated. See release 1.0.0 for more information on the earlier version.
 
