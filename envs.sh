@@ -1,0 +1,4 @@
+export EGA_DATASET_ID=EGAD00001011134
+export TOWER_ACCESS_TOKEN=
+export NXF_VER=24.04.3
+export CONDA_ENVS=path-to-conda-envs
