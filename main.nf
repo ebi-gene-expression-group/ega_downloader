@@ -23,11 +23,11 @@ process fetch_data {
 
     script:
         """
-	    mkdir -p ega_data
-	    # list unencrypted md5 checksums for all files
-	    pyega3 -cf $egaCredentialsDir/ega.credentials files ${params.EGA_DATASET_ID}
-	    # download the dataset
-	    pyega3 -c 10 -cf $egaCredentialsDir/ega.credentials fetch ${params.EGA_DATASET_ID} --output-dir ega_data --max-retries -1 --retry-wait 10
+        mkdir -p ega_data
+        # list unencrypted md5 checksums for all files
+        pyega3 -cf $egaCredentialsDir/ega.credentials files ${params.EGA_DATASET_ID}
+        # download the dataset
+        pyega3 -c 10 -cf $egaCredentialsDir/ega.credentials fetch ${params.EGA_DATASET_ID} --output-dir ega_data --max-retries -1 --retry-wait 10
         """
 }
 
@@ -45,8 +45,8 @@ process make_metadata_table {
 
     script:
         """
-	    mkdir -p ega_metadata
-	    ${workflow.launchDir}/bin/arrange_data.R -m $metadataDir -i ${params.EGA_DATASET_ID} -o ega_metadata/${params.EGA_DATASET_ID}.merged.csv
+        mkdir -p ega_metadata
+        ${workflow.launchDir}/bin/arrange_data.R -m $metadataDir -i ${params.EGA_DATASET_ID} -o ega_metadata/${params.EGA_DATASET_ID}.merged.csv
         """
 }
 
