@@ -66,8 +66,7 @@ nextflow run main.nf -c nextflow.config --EGA_DATASET_ID $EGA_DATASET_ID
 nextflow run main.nf -c nextflow.config --EGA_DATASET_ID $EGA_DATASET_ID -with-tower
 ```
 
-*Optional*
-to leverage the [Seqera Platform](https://docs.seqera.io/platform/24.1.1/getting-started/deployment-options) capabilities. You'll need to obtain a token and add it to `envs.sh`.
+to leverage the [Seqera Platform](https://docs.seqera.io/platform/24.1.1/getting-started/deployment-options) capabilities (optional). You'll need to obtain a token and add it to `envs.sh`.
 
 The result will be:
 
