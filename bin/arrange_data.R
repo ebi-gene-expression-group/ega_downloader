@@ -195,21 +195,17 @@ study_experiment_run_sample <-  read.csv( paste0(opt$metadata_dir,'/study_experi
 
 matched_indices <- match(metadata$sample_alias, study_experiment_run_sample$sample_alias)
 
-metadata$biosample_id <- study_experiment_run_sample$biosample_id[matched_indices]
 metadata$ega_run_id <- study_experiment_run_sample$run_accession_id[matched_indices]
 metadata$ega_experiment_id <- study_experiment_run_sample$experiment_accession_id[matched_indices]
 
-metadata$library_strategy <- study_experiment_run_sample$library_strategy[matched_indices]
-metadata$library_source <- study_experiment_run_sample$library_source[matched_indices]
-metadata$library_layout <- study_experiment_run_sample$library_layout[matched_indices]
+columns_matched_indices <- c("biosample_id", 
+             "library_strategy", "library_source", "library_layout", 
+             "library_name", "library_selection", "study_title", 
+             "study_type", "instrument_platform", "instrument_model")
 
-metadata$library_name <- study_experiment_run_sample$library_name[matched_indices]
-metadata$library_selection <- study_experiment_run_sample$library_selection[matched_indices]
-metadata$study_title <- study_experiment_run_sample$study_title[matched_indices]
-metadata$study_type <- study_experiment_run_sample$study_type[matched_indices]
-metadata$instrument_platform <- study_experiment_run_sample$instrument_platform[matched_indices]
-metadata$instrument_model <- study_experiment_run_sample$instrument_model[matched_indices]
-
+for (col in columns_matched_indices) {
+    metadata[[col]] <- study_experiment_run_sample[[col]][matched_indices]
+}
 
 
 # 5 update metadata with information from experiments.csv
